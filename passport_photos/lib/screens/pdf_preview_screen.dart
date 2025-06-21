@@ -15,25 +15,66 @@ class PdfPreviewScreen extends StatefulWidget {
 class _PdfPreviewScreenState extends State<PdfPreviewScreen> {
   Uint8List? _pdfData;
   bool _isLoading = false;
-  String _fileName = "document.pdf";
+  String _fileName = "photos.pdf";
+  int _totalPhotos = 0;
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    final Map args = ModalRoute.of(context)!.settings.arguments as Map;
-    final File image = args['image'];
-    final PhotoOption option = args['option'];
-    _fileName = args['fileName'] ?? "document.pdf";
-    _generatePdf(image, option);
+    final Map<String, dynamic> args = ModalRoute.of(context)!.settings.arguments as Map<String, dynamic>;
+    final List<File> images = args['images'] as List<File>;
+    final PhotoType photoType = args['photoType'] as PhotoType;
+    final List<int> individualCounts = args['individualCounts'] as List<int>;
+    final List<Map<String, dynamic>>? customDimensions = args['customDimensions'] as List<Map<String, dynamic>>?;
+
+    // Calculate total photos
+    _totalPhotos = individualCounts.fold(0, (sum, count) => sum + count);
+
+    // Generate filename based on photo type
+    String photoTypeString = photoType == PhotoType.passport
+        ? 'passport'
+        : photoType == PhotoType.stamp
+        ? 'stamp'
+        : 'custom';
+    _fileName = "${photoTypeString}_photos_${DateTime.now().millisecondsSinceEpoch}.pdf";
+
+    _generatePdf(images, photoType, individualCounts, customDimensions);
   }
 
-  Future<void> _generatePdf(File image, PhotoOption option) async {
+  Future<void> _generatePdf(List<File> images, PhotoType photoType, List<int> individualCounts, List<Map<String, dynamic>>? customDimensions) async {
     setState(() {
       _isLoading = true;
     });
 
     try {
-      final pdfData = await PdfGenerator.generatePdf(image, option);
+      // Create a single PhotoOption based on the photo type
+      PhotoOption photoOption;
+
+      switch (photoType) {
+        case PhotoType.passport:
+          photoOption = PhotoOption.passport(numberOfPhotos: _totalPhotos);
+          break;
+        case PhotoType.stamp:
+          photoOption = PhotoOption.stamp(numberOfPhotos: _totalPhotos);
+          break;
+        case PhotoType.custom:
+        // Use default custom dimensions if not provided
+          photoOption = PhotoOption.custom(
+            width: 3.5,
+            height: 4.5,
+            numberOfPhotos: _totalPhotos,
+          );
+          break;
+      }
+
+      // Generate PDF with the correct parameters
+      final pdfData = await PdfGenerator.generatePdf(
+          images,
+          photoOption,
+          individualCounts,
+          customDimensions: customDimensions
+      );
+
       setState(() {
         _pdfData = pdfData;
         _isLoading = false;
@@ -46,6 +87,7 @@ class _PdfPreviewScreenState extends State<PdfPreviewScreen> {
         SnackBar(
           content: Text('Failed to generate PDF: ${e.toString()}'),
           backgroundColor: Colors.red,
+          duration: Duration(seconds: 4),
         ),
       );
     }
@@ -53,14 +95,24 @@ class _PdfPreviewScreenState extends State<PdfPreviewScreen> {
 
   Future<void> _sharePdf() async {
     if (_pdfData != null) {
-      final tempDir = await Directory.systemTemp.createTemp('pdf_share_');
-      final file = File('${tempDir.path}/$_fileName');
-      await file.writeAsBytes(_pdfData!);
+      try {
+        final tempDir = await Directory.systemTemp.createTemp('pdf_share_');
+        final file = File('${tempDir.path}/$_fileName');
+        await file.writeAsBytes(_pdfData!);
 
-      await Share.shareFiles(
-        [file.path],
-        text: 'Here is your generated PDF',
-      );
+        await Share.shareXFiles(
+          [XFile(file.path)],
+          text: 'Here are your generated photos',
+          subject: 'Photo PDF - $_totalPhotos photos',
+        );
+      } catch (e) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to share PDF: ${e.toString()}'),
+            backgroundColor: Colors.orange,
+          ),
+        );
+      }
     }
   }
 
@@ -71,334 +123,319 @@ class _PdfPreviewScreenState extends State<PdfPreviewScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: Colors.grey[50],
       appBar: AppBar(
-        title: Text('Document Preview',
-            style: TextStyle(
-              fontSize: 22,
-              fontWeight: FontWeight.w600,
-              color: Colors.white,
-            )),
+        title: Text(
+          'PDF Preview',
+          style: TextStyle(
+            fontSize: 20,
+            fontWeight: FontWeight.w600,
+            color: Colors.white,
+          ),
+        ),
         backgroundColor: Colors.deepPurple,
         elevation: 0,
         centerTitle: true,
-        actions: [
-          IconButton(
-            icon: Icon(
-              Icons.info_outline,
-              size: 24,
+        leading: IconButton(
+          icon: Icon(Icons.arrow_back, color: Colors.white),
+          onPressed: () => Navigator.pop(context),
+        ),
+      ),
+      body: _isLoading
+          ? _buildLoadingState()
+          : _pdfData != null
+          ? _buildPreviewState()
+          : _buildErrorState(),
+    );
+  }
+
+  Widget _buildLoadingState() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Container(
+            padding: EdgeInsets.all(20),
+            decoration: BoxDecoration(
               color: Colors.white,
+              shape: BoxShape.circle,
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.1),
+                  blurRadius: 20,
+                  offset: Offset(0, 4),
+                ),
+              ],
             ),
-            onPressed: () {
-              showDialog(
-                context: context,
-                builder: (context) => AlertDialog(
-                  title: Text(
-                    'Document Information',
-                    style: TextStyle(
-                      color: Colors.deepPurple,
-                      fontWeight: FontWeight.w600,
+            child: CircularProgressIndicator(
+              color: Colors.deepPurple,
+              strokeWidth: 3,
+            ),
+          ),
+          SizedBox(height: 24),
+          Text(
+            'Creating your PDF...',
+            style: TextStyle(
+              color: Colors.black87,
+              fontSize: 18,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          SizedBox(height: 8),
+          Text(
+            'Processing $_totalPhotos photos',
+            style: TextStyle(
+              color: Colors.black54,
+              fontSize: 14,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPreviewState() {
+    return Column(
+      children: [
+        // Success banner
+        Container(
+          width: double.infinity,
+          padding: EdgeInsets.all(16),
+          margin: EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.green[50],
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Colors.green[200]!),
+          ),
+          child: Row(
+            children: [
+              Container(
+                padding: EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.green,
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  Icons.check,
+                  color: Colors.white,
+                  size: 20,
+                ),
+              ),
+              SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'PDF Ready!',
+                      style: TextStyle(
+                        color: Colors.green[800],
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
-                  ),
-                  content: Text(
-                    'Filename: $_fileName\nCreated: ${DateTime.now().toString().substring(0, 16)}',
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: Colors.black87,
-                    ),
-                  ),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  actions: [
-                    TextButton(
-                      onPressed: () => Navigator.pop(context),
-                      child: Text(
-                        'Close',
-                        style: TextStyle(
-                          color: Colors.deepPurple,
-                          fontWeight: FontWeight.w600,
-                        ),
+                    Text(
+                      '$_totalPhotos photos generated successfully',
+                      style: TextStyle(
+                        color: Colors.green[600],
+                        fontSize: 14,
                       ),
                     ),
                   ],
                 ),
-              );
-            },
-          ),
-        ],
-      ),
-      body: Container(
-        width: double.infinity,
-        height: double.infinity,
-        color: Color(0xFFE8E8F5),
-        child: _isLoading
-            ? Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              CircularProgressIndicator(
-                color: Colors.deepPurple,
-              ),
-              SizedBox(height: 16),
-              Text(
-                'Generating your document...',
-                style: TextStyle(
-                  color: Colors.black54,
-                  fontSize: 16,
-                ),
               ),
             ],
           ),
-        )
-            : _pdfData != null
-            ? Column(
-          children: [
-            Expanded(
-              child: Container(
-                margin: EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(12),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.05),
-                      blurRadius: 8,
-                      offset: Offset(0, 2),
-                    ),
-                  ],
+        ),
+
+        // PDF Preview
+        Expanded(
+          child: Container(
+            margin: EdgeInsets.symmetric(horizontal: 16),
+            color: Colors.white,
+            child: PdfPreview(
+              build: (format) => _pdfData!,
+              canChangeOrientation: false,
+              canChangePageFormat: false,
+              allowPrinting: false,
+              allowSharing: false,
+              canDebug: false,
+              previewPageMargin: EdgeInsets.all(0),
+              pdfPreviewPageDecoration: BoxDecoration(
+                color: Colors.white,
+                border: Border.all(
+                  color: Colors.black,
+                  width: 3.0,
                 ),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(12),
-                  child: PdfPreview(
-                    build: (format) => _pdfData!,
-                    canChangeOrientation: false,
-                    canChangePageFormat: false,
-                    allowPrinting: false,
-                    allowSharing: false,
-                    canDebug: false,
-                    pdfPreviewPageDecoration: BoxDecoration(
-                      color: Colors.white,
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black12,
-                          blurRadius: 8,
+              ),
+            ),
+          ),
+        ),
+
+        // Bottom Actions
+        Container(
+          padding: EdgeInsets.all(20),
+          child: Column(
+            children: [
+              // Share Button
+              GestureDetector(
+                onTap: _sharePdf,
+                child: Container(
+                  width: double.infinity,
+                  height: 56,
+                  decoration: BoxDecoration(
+                    color: Colors.deepPurple,
+                    borderRadius: BorderRadius.circular(16),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.deepPurple.withOpacity(0.3),
+                        blurRadius: 12,
+                        offset: Offset(0, 6),
+                      ),
+                    ],
+                  ),
+                  child: Center(
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.share_rounded,
+                          color: Colors.white,
+                          size: 24,
+                        ),
+                        SizedBox(width: 12),
+                        Text(
+                          'Share PDF',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                          ),
                         ),
                       ],
                     ),
                   ),
                 ),
               ),
-            ),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 16.0),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    'Document Ready !',
-                    style: TextStyle(
-                      color: Colors.black87,
-                      fontSize: 18,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  SizedBox(height: 16),
 
-                  // Row with Share and Save buttons
-                  Row(
-                    children: [
-                      Expanded(
-                        child: GestureDetector(
-                          onTap: _sharePdf,
-                          child: Container(
-                            height: 56,
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              borderRadius: BorderRadius.circular(12),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.deepPurple.withOpacity(0.2),
-                                  blurRadius: 8,
-                                  offset: Offset(0, 2),
-                                ),
-                              ],
-                            ),
-                            child: Center(
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Icon(
-                                    Icons.share,
-                                    color: Colors.deepPurple,
-                                    size: 24,
-                                  ),
-                                  SizedBox(width: 8),
-                                  Text(
-                                    'Share',
-                                    style: TextStyle(
-                                      color: Colors.deepPurple,
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                      SizedBox(width: 12),
-                      Expanded(
-                        child: GestureDetector(
-                          onTap: () {
-                            Printing.layoutPdf(
-                              onLayout: (PdfPageFormat format) async => _pdfData!,
-                              name: _fileName,
-                            );
-                          },
-                          child: Container(
-                            height: 56,
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              borderRadius: BorderRadius.circular(12),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.deepPurple.withOpacity(0.2),
-                                  blurRadius: 8,
-                                  offset: Offset(0, 2),
-                                ),
-                              ],
-                            ),
-                            child: Center(
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Icon(
-                                    Icons.download,
-                                    color: Colors.deepPurple,
-                                    size: 24,
-                                  ),
-                                  SizedBox(width: 8),
-                                  Text(
-                                    'Save',
-                                    style: TextStyle(
-                                      color: Colors.deepPurple,
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  SizedBox(height: 16),
+              SizedBox(height: 12),
 
-                  // Done Button
-                  GestureDetector(
-                    onTap: _navigateToHome,
-                    child: Container(
-                      width: double.infinity,
-                      height: 60,
-                      decoration: BoxDecoration(
-                        color: Colors.deepPurple,
-                        borderRadius: BorderRadius.circular(12),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.deepPurple.withOpacity(0.3),
-                            blurRadius: 8,
-                            offset: Offset(0, 4),
-                          ),
-                        ],
-                      ),
-                      child: Center(
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              Icons.home,
-                              color: Colors.white,
-                              size: 24,
-                            ),
-                            SizedBox(width: 12),
-                            Text(
-                              'Done',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 18,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        )
-            : Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(
-                Icons.error_outline,
-                size: 70,
-                color: Colors.red[300],
-              ),
-              SizedBox(height: 16),
-              Text(
-                'Failed to generate document',
-                style: TextStyle(
-                  color: Colors.black54,
-                  fontSize: 18,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-              SizedBox(height: 24),
+              // Done Button
               GestureDetector(
-                onTap: () => Navigator.pop(context),
+                onTap: _navigateToHome,
                 child: Container(
-                  padding: EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                  width: double.infinity,
+                  height: 56,
                   decoration: BoxDecoration(
-                    color: Colors.deepPurple,
-                    borderRadius: BorderRadius.circular(12),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.deepPurple.withOpacity(0.3),
-                        blurRadius: 8,
-                        offset: Offset(0, 2),
-                      ),
-                    ],
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: Colors.grey[300]!),
                   ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        Icons.arrow_back,
-                        size: 24,
-                        color: Colors.white,
-                      ),
-                      SizedBox(width: 8),
-                      Text(
-                        'Go Back',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 16,
-                          fontWeight: FontWeight.w500,
+                  child: Center(
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.home_rounded,
+                          color: Colors.grey[700],
+                          size: 24,
                         ),
-                      ),
-                    ],
+                        SizedBox(width: 12),
+                        Text(
+                          'Done',
+                          style: TextStyle(
+                            color: Colors.grey[700],
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ),
             ],
           ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildErrorState() {
+    return Center(
+      child: Padding(
+        padding: EdgeInsets.all(32),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              padding: EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                color: Colors.red[50],
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                Icons.error_outline_rounded,
+                size: 48,
+                color: Colors.red[400],
+              ),
+            ),
+            SizedBox(height: 24),
+            Text(
+              'Something went wrong',
+              style: TextStyle(
+                color: Colors.black87,
+                fontSize: 20,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            SizedBox(height: 8),
+            Text(
+              'We couldn\'t generate your PDF. Please try again.',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: Colors.black54,
+                fontSize: 16,
+              ),
+            ),
+            SizedBox(height: 32),
+            GestureDetector(
+              onTap: () => Navigator.pop(context),
+              child: Container(
+                padding: EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+                decoration: BoxDecoration(
+                  color: Colors.deepPurple,
+                  borderRadius: BorderRadius.circular(16),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.deepPurple.withOpacity(0.3),
+                      blurRadius: 12,
+                      offset: Offset(0, 6),
+                    ),
+                  ],
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Icons.arrow_back_rounded,
+                      size: 20,
+                      color: Colors.white,
+                    ),
+                    SizedBox(width: 8),
+                    Text(
+                      'Go Back',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );
