@@ -253,14 +253,19 @@ class _ImagePickerScreenState extends State<ImagePickerScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final screenHeight = MediaQuery.of(context).size.height;
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isSmallScreen = screenWidth < 400;
+
     return Scaffold(
       appBar: AppBar(
-        title: Text('Select and Crop Images',
-            style: TextStyle(
-                color: Colors.white,
-                fontSize: 22,
-                fontWeight: FontWeight.bold
-            )
+        title: Text(
+          'Select Images',
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: 20,
+            fontWeight: FontWeight.bold,
+          ),
         ),
         backgroundColor: Colors.deepPurple,
         centerTitle: true,
@@ -274,372 +279,372 @@ class _ImagePickerScreenState extends State<ImagePickerScreen> {
             ),
         ],
       ),
-      body: Container(
-        color: Color(0xFFE8E8F5),
-        width: double.infinity,
-        child: SafeArea(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(24.0),
-            child: Column(
-              children: [
-                // Images Display Section
-                Container(
-                  width: double.infinity,
-                  constraints: BoxConstraints(
-                    maxHeight: MediaQuery.of(context).size.height * 0.5,
-                    minHeight: 200,
-                  ),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(20),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black12,
-                        blurRadius: 10,
-                        spreadRadius: 2,
-                      ),
-                    ],
-                  ),
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(20),
-                    child: _images.isEmpty
-                        ? Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(
-                            Icons.add_photo_alternate,
-                            size: 80,
-                            color: Colors.deepPurple.withOpacity(0.3),
-                          ),
-                          SizedBox(height: 16),
-                          Text(
-                            'No images selected',
-                            style: TextStyle(
-                                color: Colors.black54,
-                                fontSize: 18,
-                                fontWeight: FontWeight.w500
-                            ),
-                          ),
-                          SizedBox(height: 8),
-                          Text(
-                            'Add images to get started',
-                            style: TextStyle(
-                                color: Colors.black38,
-                                fontSize: 14
-                            ),
-                          ),
-                        ],
-                      ),
-                    )
-                        : Column(
-                      children: [
-                        // Images count header
-                        Container(
-                          width: double.infinity,
-                          padding: EdgeInsets.all(16),
-                          decoration: BoxDecoration(
-                            color: Colors.deepPurple.withOpacity(0.1),
-                            borderRadius: BorderRadius.only(
-                              topLeft: Radius.circular(20),
-                              topRight: Radius.circular(20),
-                            ),
-                          ),
-                          child: Text(
-                            '${_images.length} image${_images.length > 1 ? 's' : ''} selected',
-                            style: TextStyle(
-                              color: Colors.deepPurple,
-                              fontSize: 16,
-                              fontWeight: FontWeight.w600,
-                            ),
-                            textAlign: TextAlign.center,
-                          ),
-                        ),
-                        // Images grid
-                        Expanded(
-                          child: Padding(
-                            padding: const EdgeInsets.all(16.0),
-                            child: GridView.builder(
-                              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                                crossAxisCount: 2,
-                                crossAxisSpacing: 12,
-                                mainAxisSpacing: 12,
-                                childAspectRatio: 1,
-                              ),
-                              itemCount: _images.length,
-                              itemBuilder: (context, index) {
-                                return Stack(
-                                  children: [
-                                    GestureDetector(
-                                      onTap: () {
-                                        setState(() {
-                                          _selectedImageIndex = _selectedImageIndex == index ? null : index;
-                                        });
-                                      },
-                                      child: Container(
-                                        decoration: BoxDecoration(
-                                          borderRadius: BorderRadius.circular(12),
-                                          border: Border.all(
-                                            color: _selectedImageIndex == index
-                                                ? Colors.deepPurple
-                                                : Colors.transparent,
-                                            width: 3,
-                                          ),
-                                        ),
-                                        child: ClipRRect(
-                                          borderRadius: BorderRadius.circular(12),
-                                          child: Image.file(
-                                            _images[index],
-                                            fit: BoxFit.cover,
-                                            width: double.infinity,
-                                            height: double.infinity,
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                    // Remove button
-                                    Positioned(
-                                      top: 4,
-                                      right: 4,
-                                      child: GestureDetector(
-                                        onTap: () => _removeImage(index),
-                                        child: Container(
-                                          width: 24,
-                                          height: 24,
-                                          decoration: BoxDecoration(
-                                            color: Colors.red,
-                                            shape: BoxShape.circle,
-                                            boxShadow: [
-                                              BoxShadow(
-                                                color: Colors.black26,
-                                                blurRadius: 4,
-                                              ),
-                                            ],
-                                          ),
-                                          child: Icon(
-                                            Icons.close,
-                                            color: Colors.white,
-                                            size: 16,
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                    // Selection indicator
-                                    if (_selectedImageIndex == index)
-                                      Positioned(
-                                        bottom: 4,
-                                        left: 4,
-                                        child: Container(
-                                          padding: EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                          decoration: BoxDecoration(
-                                            color: Colors.deepPurple,
-                                            borderRadius: BorderRadius.circular(8),
-                                          ),
-                                          child: Text(
-                                            'Selected',
-                                            style: TextStyle(
-                                              color: Colors.white,
-                                              fontSize: 10,
-                                              fontWeight: FontWeight.w500,
-                                            ),
-                                          ),
-                                        ),
-                                      ),
-                                  ],
-                                );
-                              },
-                            ),
-                          ),
+      backgroundColor: Color(0xFFF5F5F5),
+      body: Column(
+        children: [
+          // Main content area
+          Expanded(
+            child: SingleChildScrollView(
+              padding: EdgeInsets.all(16.0),
+              child: Column(
+                children: [
+                  // Images Display Section
+                  Container(
+                    width: double.infinity,
+                    height: screenHeight * 0.45, // Fixed height to prevent overflow
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(16),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.1),
+                          blurRadius: 8,
+                          offset: Offset(0, 2),
                         ),
                       ],
                     ),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(16),
+                      child: _images.isEmpty
+                          ? _buildEmptyState()
+                          : _buildImageGrid(),
+                    ),
                   ),
+
+                  SizedBox(height: 20),
+
+                  // Image counter
+                  if (_images.isNotEmpty)
+                    Container(
+                      padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: Colors.deepPurple.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Text(
+                        '${_images.length} of $maxImages images selected',
+                        style: TextStyle(
+                          color: Colors.deepPurple,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ),
+
+          // Bottom Action Buttons
+          Container(
+            padding: EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.05),
+                  blurRadius: 10,
+                  offset: Offset(0, -2),
                 ),
-
-                SizedBox(height: 30),
-
-                // Action Buttons
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    // Add Multiple Images Button
-                    GestureDetector(
-                      onTap: _isProcessing ? null : _pickAndCropImages,
-                      child: Container(
-                        width: 120,
-                        height: 100,
-                        decoration: BoxDecoration(
-                          color: _isProcessing
-                              ? Colors.grey.withOpacity(0.5)
-                              : Colors.white.withOpacity(0.9),
-                          borderRadius: BorderRadius.circular(15),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black12,
-                              blurRadius: 6,
-                              spreadRadius: 1,
+              ],
+            ),
+            child: SafeArea(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Action buttons row
+                  Row(
+                    children: [
+                      // Add Multiple Images Button
+                      Expanded(
+                        child: _buildActionButton(
+                          onTap: _isProcessing ? null : _pickAndCropImages,
+                          icon: _isProcessing
+                              ? SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              valueColor: AlwaysStoppedAnimation<Color>(Colors.deepPurple),
                             ),
-                          ],
-                        ),
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            _isProcessing
-                                ? SizedBox(
-                              width: 28,
-                              height: 28,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                valueColor: AlwaysStoppedAnimation<Color>(Colors.deepPurple),
-                              ),
-                            )
-                                : Icon(
-                              Icons.photo_library,
-                              size: 28,
-                              color: Colors.deepPurple,
-                            ),
-                            SizedBox(height: 8),
-                            Text(
-                              _isProcessing ? "Processing..." : "Add Multiple\nImages",
-                              textAlign: TextAlign.center,
-                              style: TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w500,
-                                color: _isProcessing ? Colors.grey : Colors.black87,
-                              ),
-                            ),
-                          ],
+                          )
+                              : Icon(Icons.photo_library, size: 24, color: Colors.deepPurple),
+                          label: _isProcessing ? "Processing..." : "Add Multiple",
+                          isEnabled: !_isProcessing,
+                          isPrimary: false,
                         ),
                       ),
-                    ),
 
-                    SizedBox(width: 12),
-
-                    // Add Single Image Button
-                    GestureDetector(
-                      onTap: _isProcessing ? null : _addSingleImage,
-                      child: Container(
-                        width: 120,
-                        height: 100,
-                        decoration: BoxDecoration(
-                          color: _isProcessing
-                              ? Colors.grey.withOpacity(0.5)
-                              : Colors.white.withOpacity(0.9),
-                          borderRadius: BorderRadius.circular(15),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black12,
-                              blurRadius: 6,
-                              spreadRadius: 1,
-                            ),
-                          ],
-                        ),
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(
-                              Icons.add_photo_alternate,
-                              size: 28,
-                              color: _isProcessing ? Colors.grey : Colors.deepPurple,
-                            ),
-                            SizedBox(height: 8),
-                            Text(
-                              "Add Single\nImage",
-                              textAlign: TextAlign.center,
-                              style: TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w500,
-                                color: _isProcessing ? Colors.grey : Colors.black87,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-
-                    // Next Button (only visible if images are selected)
-                    if (_images.isNotEmpty) ...[
                       SizedBox(width: 12),
-                      GestureDetector(
+
+                      // Add Single Image Button
+                      Expanded(
+                        child: _buildActionButton(
+                          onTap: _isProcessing ? null : _addSingleImage,
+                          icon: Icon(
+                            Icons.add_photo_alternate,
+                            size: 24,
+                            color: _isProcessing ? Colors.grey : Colors.deepPurple,
+                          ),
+                          label: "Add Single",
+                          isEnabled: !_isProcessing,
+                          isPrimary: false,
+                        ),
+                      ),
+                    ],
+                  ),
+
+                  // Continue button (full width when images are present)
+                  if (_images.isNotEmpty) ...[
+                    SizedBox(height: 12),
+                    SizedBox(
+                      width: double.infinity,
+                      child: _buildActionButton(
                         onTap: () {
                           Navigator.pushNamed(
                             context,
                             '/selectSize',
-                            arguments: _images, // Pass the list of images
+                            arguments: _images,
                           );
                         },
-                        onTapDown: (_) {
-                          setState(() {
-                            _isNextHovered = true;
-                          });
-                        },
-                        onTapUp: (_) {
-                          setState(() {
-                            _isNextHovered = false;
-                          });
-                        },
-                        onTapCancel: () {
-                          setState(() {
-                            _isNextHovered = false;
-                          });
-                        },
-                        child: AnimatedContainer(
-                          duration: Duration(milliseconds: 200),
-                          width: 120,
-                          height: 100,
-                          decoration: BoxDecoration(
-                            color: _isNextHovered
-                                ? Colors.deepPurple.withOpacity(0.9)
-                                : Colors.deepPurple,
-                            borderRadius: BorderRadius.circular(15),
-                            boxShadow: [
-                              BoxShadow(
-                                color: _isNextHovered
-                                    ? Colors.deepPurple.withOpacity(0.6)
-                                    : Colors.black12,
-                                blurRadius: _isNextHovered ? 8 : 4,
-                                spreadRadius: _isNextHovered ? 2 : 1,
-                              ),
-                            ],
-                          ),
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(
-                                Icons.arrow_forward,
-                                size: 28,
-                                color: Colors.white,
-                              ),
-                              SizedBox(height: 8),
-                              Text(
-                                "Continue",
-                                textAlign: TextAlign.center,
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w600,
-                                  color: Colors.white,
-                                ),
-                              ),
-                              Text(
-                                "Next Step",
-                                textAlign: TextAlign.center,
-                                style: TextStyle(
-                                  fontSize: 10,
-                                  color: Colors.white70,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
+                        icon: Icon(Icons.arrow_forward, size: 24, color: Colors.white),
+                        label: "Continue to Next Step",
+                        isEnabled: true,
+                        isPrimary: true,
+                        isFullWidth: true,
                       ),
-                    ],
+                    ),
                   ],
-                ),
-
-                SizedBox(height: 20),
-              ],
+                ],
+              ),
             ),
           ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildEmptyState() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            Icons.add_photo_alternate_outlined,
+            size: 64,
+            color: Colors.grey[400],
+          ),
+          SizedBox(height: 16),
+          Text(
+            'No images selected',
+            style: TextStyle(
+              color: Colors.grey[600],
+              fontSize: 18,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          SizedBox(height: 8),
+          Text(
+            'Tap the buttons below to add images',
+            style: TextStyle(
+              color: Colors.grey[500],
+              fontSize: 14,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildImageGrid() {
+    return Column(
+      children: [
+        // Header
+        Container(
+          width: double.infinity,
+          padding: EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.deepPurple.withOpacity(0.1),
+            borderRadius: BorderRadius.only(
+              topLeft: Radius.circular(16),
+              topRight: Radius.circular(16),
+            ),
+          ),
+          child: Text(
+            '${_images.length} image${_images.length > 1 ? 's' : ''} selected',
+            style: TextStyle(
+              color: Colors.deepPurple,
+              fontSize: 16,
+              fontWeight: FontWeight.w600,
+            ),
+            textAlign: TextAlign.center,
+          ),
+        ),
+
+        // Images grid
+        Expanded(
+          child: Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: GridView.builder(
+              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: MediaQuery.of(context).size.width > 600 ? 3 : 2,
+                crossAxisSpacing: 12,
+                mainAxisSpacing: 12,
+                childAspectRatio: 1,
+              ),
+              itemCount: _images.length,
+              itemBuilder: (context, index) {
+                return _buildImageItem(index);
+              },
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildImageItem(int index) {
+    final isSelected = _selectedImageIndex == index;
+
+    return GestureDetector(
+      onTap: () {
+        setState(() {
+          _selectedImageIndex = isSelected ? null : index;
+        });
+      },
+      child: Container(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: isSelected ? Colors.deepPurple : Colors.grey[300]!,
+            width: isSelected ? 3 : 1,
+          ),
+        ),
+        child: Stack(
+          children: [
+            // Image
+            ClipRRect(
+              borderRadius: BorderRadius.circular(11),
+              child: Image.file(
+                _images[index],
+                fit: BoxFit.cover,
+                width: double.infinity,
+                height: double.infinity,
+              ),
+            ),
+
+            // Remove button
+            Positioned(
+              top: 4,
+              right: 4,
+              child: GestureDetector(
+                onTap: () => _removeImage(index),
+                child: Container(
+                  width: 28,
+                  height: 28,
+                  decoration: BoxDecoration(
+                    color: Colors.red,
+                    shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black26,
+                        blurRadius: 4,
+                      ),
+                    ],
+                  ),
+                  child: Icon(
+                    Icons.close,
+                    color: Colors.white,
+                    size: 18,
+                  ),
+                ),
+              ),
+            ),
+
+            // Selection indicator
+            if (isSelected)
+              Positioned(
+                bottom: 4,
+                left: 4,
+                child: Container(
+                  padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: Colors.deepPurple,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    'Selected',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 10,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildActionButton({
+    required VoidCallback? onTap,
+    required Widget icon,
+    required String label,
+    required bool isEnabled,
+    required bool isPrimary,
+    bool isFullWidth = false,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        height: 56,
+        padding: EdgeInsets.symmetric(horizontal: 16),
+        decoration: BoxDecoration(
+          color: isPrimary
+              ? Colors.deepPurple
+              : (isEnabled ? Colors.white : Colors.grey[100]),
+          borderRadius: BorderRadius.circular(12),
+          border: isPrimary
+              ? null
+              : Border.all(color: Colors.grey[300]!),
+          boxShadow: isPrimary
+              ? [
+            BoxShadow(
+              color: Colors.deepPurple.withOpacity(0.3),
+              blurRadius: 8,
+              offset: Offset(0, 2),
+            ),
+          ]
+              : [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.05),
+              blurRadius: 4,
+              offset: Offset(0, 1),
+            ),
+          ],
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            icon,
+            SizedBox(width: 8),
+            Flexible(
+              child: Text(
+                label,
+                style: TextStyle(
+                  color: isPrimary
+                      ? Colors.white
+                      : (isEnabled ? Colors.black87 : Colors.grey),
+                  fontSize: 16,
+                  fontWeight: isPrimary ? FontWeight.w600 : FontWeight.w500,
+                ),
+                textAlign: TextAlign.center,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ],
         ),
       ),
     );
