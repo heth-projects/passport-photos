@@ -1,17 +1,16 @@
 import 'dart:io';
-import 'dart:typed_data';
 import 'dart:math' as math;
+import 'dart:typed_data';
+
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
+
 import '../models/photo_option.dart';
 
 class PdfGenerator {
   static Future<Uint8List> generatePdf(
-      List<File> imageFiles,
-      PhotoOption option,
-      List<int> individualCounts,
-      {List<Map<String, dynamic>>? customDimensions}
-      ) async {
+      List<File> imageFiles, PhotoOption option, List<int> individualCounts,
+      {List<Map<String, dynamic>>? customDimensions}) async {
     final pdf = pw.Document();
 
     // Define actual sizes in millimeters
@@ -43,7 +42,8 @@ class PdfGenerator {
 
       // Generate photos based on selected type
       if (option.type == PhotoType.passport) {
-        PdfPoint size = mmToPoint(passportWidthMM.toDouble(), passportHeightMM.toDouble());
+        PdfPoint size =
+            mmToPoint(passportWidthMM.toDouble(), passportHeightMM.toDouble());
         for (int i = 0; i < count; i++) {
           allImageData.add({
             'image': pwImage,
@@ -52,7 +52,8 @@ class PdfGenerator {
           });
         }
       } else if (option.type == PhotoType.stamp) {
-        PdfPoint size = mmToPoint(stampWidthMM.toDouble(), stampHeightMM.toDouble());
+        PdfPoint size =
+            mmToPoint(stampWidthMM.toDouble(), stampHeightMM.toDouble());
         for (int i = 0; i < count; i++) {
           allImageData.add({
             'image': pwImage,
@@ -65,7 +66,8 @@ class PdfGenerator {
         if (customDimensions != null && imageIndex < customDimensions.length) {
           final customDim = customDimensions[imageIndex];
           double widthMM = customDim['widthInMM'] ?? passportWidthMM.toDouble();
-          double heightMM = customDim['heightInMM'] ?? passportHeightMM.toDouble();
+          double heightMM =
+              customDim['heightInMM'] ?? passportHeightMM.toDouble();
           PdfPoint size = mmToPoint(widthMM, heightMM);
 
           for (int i = 0; i < count; i++) {
@@ -95,86 +97,117 @@ class PdfGenerator {
     return pdf.save();
   }
 
-  static void _generateCustomPages(pw.Document pdf, List<Map<String, dynamic>> allImageData) {
+  static void _generateCustomPages(
+      pw.Document pdf, List<Map<String, dynamic>> allImageData) {
     // A4 dimensions in points (minus margins)
     final double marginPoints = 15 * PdfPageFormat.mm;
     final double paddingPoints = 10 * PdfPageFormat.mm;
-    final double availableWidth = PdfPageFormat.a4.width - (2 * marginPoints) - (2 * paddingPoints);
-    final double availableHeight = PdfPageFormat.a4.height - (2 * marginPoints) - (2 * paddingPoints);
+    final double availableWidth =
+        PdfPageFormat.a4.width - (2 * marginPoints) - (2 * paddingPoints);
+    final double availableHeight =
+        PdfPageFormat.a4.height - (2 * marginPoints) - (2 * paddingPoints);
 
     // Minimum spacing between images
-    final double minSpacing = 8 * PdfPageFormat.mm;
+    final double minSpacing = 5 * PdfPageFormat.mm;
 
-    List<Map<String, dynamic>> currentPageImages = [];
     int imageIndex = 0;
 
     while (imageIndex < allImageData.length) {
-      currentPageImages.clear();
-
-      // Try to fit as many images as possible on current page
+      List<Map<String, dynamic>> currentPageImages = [];
       double currentY = 0;
 
+      // Keep adding rows until page is full
       while (imageIndex < allImageData.length && currentY < availableHeight) {
         List<Map<String, dynamic>> currentRow = [];
         double currentX = 0;
-        double rowHeight = 0;
+        double maxRowHeight = 0;
 
-        // Fill current row
-        while (imageIndex < allImageData.length && currentX < availableWidth) {
+        // Fill current row with as many images as possible
+        while (imageIndex < allImageData.length) {
           final imageData = allImageData[imageIndex];
           final size = imageData['size'] as PdfPoint;
 
           // Check if image fits in current row
-          if (currentX + size.x <= availableWidth) {
+          double neededWidth = size.x;
+          if (currentRow.isNotEmpty) {
+            neededWidth += minSpacing; // Add spacing before this image
+          }
+
+          if (currentX + neededWidth <= availableWidth) {
+            // Image fits in current row
             currentRow.add({
               'data': imageData,
-              'x': currentX,
+              'x': currentX + (currentRow.isEmpty ? 0 : minSpacing),
               'y': currentY,
             });
-            currentX += size.x + minSpacing;
-            rowHeight = math.max(rowHeight, size.y);
+
+            currentX += neededWidth;
+            maxRowHeight = math.max(maxRowHeight, size.y);
             imageIndex++;
           } else {
-            break; // Move to next row
+            // Image doesn't fit, move to next row
+            break;
           }
         }
 
-        // Check if row fits in current page
-        if (currentY + rowHeight <= availableHeight && currentRow.isNotEmpty) {
-          // Distribute images evenly across the row width
-          if (currentRow.length > 1) {
-            double totalImageWidth = currentRow.fold(0.0, (sum, item) {
-              return sum + (item['data']['size'] as PdfPoint).x;
-            });
-            double totalSpacing = availableWidth - totalImageWidth;
-            double spacingBetweenImages = totalSpacing / (currentRow.length - 1);
+        // Check if this row fits on the current page
+        if (currentRow.isEmpty) {
+          // No images could fit in this row at all (image too wide)
+          // Skip this image or handle error
+          if (imageIndex < allImageData.length) {
+            final size = (allImageData[imageIndex]['size'] as PdfPoint);
+            if (size.x > availableWidth) {
+              // Image is too wide for page, skip it
+              imageIndex++;
+              continue;
+            }
+          }
+          break;
+        }
 
-            // Recalculate X positions with even spacing
-            double newX = 0;
-            for (int i = 0; i < currentRow.length; i++) {
-              currentRow[i]['x'] = newX;
-              newX += (currentRow[i]['data']['size'] as PdfPoint).x + spacingBetweenImages;
+        double neededHeight = maxRowHeight;
+        if (currentPageImages.isNotEmpty) {
+          neededHeight += minSpacing; // Add spacing before this row
+        }
+
+        if (currentY + neededHeight <= availableHeight) {
+          // Row fits on current page
+          // Adjust Y positions to include spacing
+          if (currentPageImages.isNotEmpty) {
+            for (var item in currentRow) {
+              item['y'] = currentY + minSpacing;
+            }
+            currentY += minSpacing;
+          }
+
+          // Center the row horizontally if it doesn't fill the width
+          if (currentRow.isNotEmpty && currentX < availableWidth) {
+            double totalRowWidth = currentX;
+            double leftOffset = (availableWidth - totalRowWidth) / 2;
+
+            for (var item in currentRow) {
+              item['x'] = item['x'] + leftOffset;
             }
           }
 
           currentPageImages.addAll(currentRow);
-          currentY += rowHeight + minSpacing;
+          currentY += maxRowHeight;
         } else {
-          // Reset index to retry these images on next page
+          // Row doesn't fit, move these images to next page
           imageIndex -= currentRow.length;
           break;
         }
       }
 
-      // Add page with current images
+      // Create page with all images that fit
       if (currentPageImages.isNotEmpty) {
         pdf.addPage(
           pw.Page(
             pageFormat: PdfPageFormat.a4,
-            margin: pw.EdgeInsets.all(15),
+            margin: pw.EdgeInsets.all(marginPoints / PdfPageFormat.mm),
             build: (context) {
               return pw.Padding(
-                padding: const pw.EdgeInsets.all(10),
+                padding: pw.EdgeInsets.all(paddingPoints / PdfPageFormat.mm),
                 child: pw.Stack(
                   children: currentPageImages.map((item) {
                     return pw.Positioned(
@@ -195,7 +228,8 @@ class PdfGenerator {
     }
   }
 
-  static void _generateStandardPages(pw.Document pdf, List<Map<String, dynamic>> allImageData, PhotoType photoType) {
+  static void _generateStandardPages(pw.Document pdf,
+      List<Map<String, dynamic>> allImageData, PhotoType photoType) {
     // Calculate photos per page based on photo type
     int photosPerPage;
     int photosPerRow;
@@ -240,7 +274,8 @@ class PdfGenerator {
     }
   }
 
-  static pw.Widget _buildPhotoGrid(List<Map<String, dynamic>> imageData, int photosPerRow, PhotoType photoType) {
+  static pw.Widget _buildPhotoGrid(List<Map<String, dynamic>> imageData,
+      int photosPerRow, PhotoType photoType) {
     List<pw.Widget> rows = [];
 
     // Calculate spacing based on photo type
@@ -263,7 +298,8 @@ class PdfGenerator {
     }
 
     // Calculate the total width of a full row
-    double totalRowWidth = (photoWidth * photosPerRow) + (horizontalSpacing * (photosPerRow - 1));
+    double totalRowWidth =
+        (photoWidth * photosPerRow) + (horizontalSpacing * (photosPerRow - 1));
 
     // Calculate available width
     double availableWidth = PdfPageFormat.a4.width - (15 * 2) - (10 * 2);
@@ -272,7 +308,9 @@ class PdfGenerator {
     double leftPadding = math.max(0, (availableWidth - totalRowWidth) / 2);
 
     for (int i = 0; i < imageData.length; i += photosPerRow) {
-      int end = (i + photosPerRow < imageData.length) ? i + photosPerRow : imageData.length;
+      int end = (i + photosPerRow < imageData.length)
+          ? i + photosPerRow
+          : imageData.length;
       List<Map<String, dynamic>> rowImageData = imageData.sublist(i, end);
 
       // Create row widgets
@@ -307,14 +345,14 @@ class PdfGenerator {
     return pw.Column(
       mainAxisAlignment: pw.MainAxisAlignment.start,
       crossAxisAlignment: pw.CrossAxisAlignment.start,
-      children: rows.map((row) =>
-          pw.Padding(
-            padding: pw.EdgeInsets.only(
-              bottom: verticalSpacing,
-            ),
-            child: row,
-          )
-      ).toList(),
+      children: rows
+          .map((row) => pw.Padding(
+                padding: pw.EdgeInsets.only(
+                  bottom: verticalSpacing,
+                ),
+                child: row,
+              ))
+          .toList(),
     );
   }
 
